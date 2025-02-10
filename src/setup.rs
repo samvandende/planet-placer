@@ -159,6 +159,8 @@ pub mod triangle {
         },
     ];
 
+    const INDICES: &[u16] = &[0, 1, 2];
+
     pub fn vertex_buffer(device: &wgpu::Device) -> (wgpu::Buffer, usize) {
         let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("Vertex Buffer"),
@@ -166,6 +168,15 @@ pub mod triangle {
             usage: wgpu::BufferUsages::VERTEX,
         });
         (buffer, VERTICES.len())
+    }
+
+    pub fn index_buffer(device: &wgpu::Device) -> (wgpu::Buffer, usize) {
+        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("Index Buffer"),
+            contents: bytemuck::cast_slice(INDICES),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+        (buffer, INDICES.len())
     }
 
     pub fn render_pipeline(

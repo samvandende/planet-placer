@@ -19,7 +19,9 @@ pub fn main() -> anyhow::Result<()> {
     let mut surface_configured =
         setup::configure_surface(&surface, &device, &mut config, window.inner_size());
     let triangle_pipeline = setup::triangle::render_pipeline(&device, &config)?;
-    let (triangle_buffer, len) = setup::triangle::vertex_buffer(&device);
+    let (triangle_vertex_buffer, _) = setup::triangle::vertex_buffer(&device);
+    let (triangle_index_buffer, len) = setup::triangle::index_buffer(&device);
+
     event_loop.run(move |event, control_flow| match event {
         Event::WindowEvent {
             ref event,
@@ -41,7 +43,8 @@ pub fn main() -> anyhow::Result<()> {
                     &device,
                     &queue,
                     &triangle_pipeline,
-                    &triangle_buffer,
+                    &triangle_vertex_buffer,
+                    &triangle_index_buffer,
                     len,
                 ) {
                     Ok(_) => {}
@@ -89,6 +92,7 @@ fn render_triangle(
     queue: &wgpu::Queue,
     triangle_pipeline: &wgpu::RenderPipeline,
     vertex_buffer: &wgpu::Buffer,
+    index_buffer: &wgpu::Buffer,
     len: usize,
 ) -> Result<(), wgpu::SurfaceError> {
     let output = surface.get_current_texture()?;
@@ -123,7 +127,8 @@ fn render_triangle(
 
         render_pass.set_pipeline(triangle_pipeline);
         render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-        render_pass.draw(0..len as _, 0..1);
+        render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+        render_pass.draw_indexed(0..len as _, 0, 0..1);
     }
 
     queue.submit(std::iter::once(encoder.finish()));
