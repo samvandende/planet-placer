@@ -18,7 +18,8 @@ pub fn main() -> anyhow::Result<()> {
     let mut config = setup::surface_config(&surface, &adapter);
     let mut surface_configured =
         setup::configure_surface(&surface, &device, &mut config, window.inner_size());
-
+    let triangle_pipeline = setup::triangle::render_pipeline(&device, &config)?;
+    let (triangle_buffer, len) = setup::triangle::vertex_buffer(&device);
     event_loop.run(move |event, control_flow| match event {
         Event::WindowEvent {
             ref event,
@@ -35,7 +36,14 @@ pub fn main() -> anyhow::Result<()> {
                     return;
                 }
 
-                match render_clear(&surface, &device, &queue) {
+                match render_triangle(
+                    &surface,
+                    &device,
+                    &queue,
+                    &triangle_pipeline,
+                    &triangle_buffer,
+                    len,
+                ) {
                     Ok(_) => {}
                     Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                         surface_configured = setup::configure_surface(
@@ -75,10 +83,13 @@ pub fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn render_clear(
+fn render_triangle(
     surface: &wgpu::Surface,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
+    triangle_pipeline: &wgpu::RenderPipeline,
+    vertex_buffer: &wgpu::Buffer,
+    len: usize,
 ) -> Result<(), wgpu::SurfaceError> {
     let output = surface.get_current_texture()?;
 
@@ -90,7 +101,7 @@ fn render_clear(
     });
 
     {
-        let _render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("Render Pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &view,
@@ -109,6 +120,10 @@ fn render_clear(
             occlusion_query_set: None,
             timestamp_writes: None,
         });
+
+        render_pass.set_pipeline(triangle_pipeline);
+        render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
+        render_pass.draw(0..len as _, 0..1);
     }
 
     queue.submit(std::iter::once(encoder.finish()));
