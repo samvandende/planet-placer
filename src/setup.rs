@@ -1,3 +1,4 @@
+use crate::utils::*;
 use anyhow::Result;
 use std::borrow::Cow;
 use std::ffi::OsStr;
@@ -119,12 +120,12 @@ pub fn shader(device: &wgpu::Device, file: impl AsRef<Path>) -> Result<wgpu::Sha
 
 pub mod triangle {
     use super::shader;
+    use crate::utils::*;
     use anyhow::Result;
-    use wgpu::util::DeviceExt;
 
     #[repr(C)]
     #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-    struct Vertex {
+    pub struct Vertex {
         position: [f32; 3],
         color: [f32; 3],
     }
@@ -161,22 +162,20 @@ pub mod triangle {
 
     const INDICES: &[u16] = &[0, 1, 2];
 
-    pub fn vertex_buffer(device: &wgpu::Device) -> (wgpu::Buffer, usize) {
-        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+    pub fn vertex_buffer(device: &wgpu::Device) -> Buffer<Vertex> {
+        device.create_typed_buffer_init(&TypedBufferInitDescriptor {
             label: Some("Vertex Buffer"),
-            contents: bytemuck::cast_slice(VERTICES),
+            contents: VERTICES,
             usage: wgpu::BufferUsages::VERTEX,
-        });
-        (buffer, VERTICES.len())
+        })
     }
 
-    pub fn index_buffer(device: &wgpu::Device) -> (wgpu::Buffer, usize) {
-        let buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+    pub fn index_buffer(device: &wgpu::Device) -> Buffer<u16> {
+        device.create_typed_buffer_init(&TypedBufferInitDescriptor {
             label: Some("Index Buffer"),
-            contents: bytemuck::cast_slice(INDICES),
+            contents: INDICES,
             usage: wgpu::BufferUsages::INDEX,
-        });
-        (buffer, INDICES.len())
+        })
     }
 
     pub fn render_pipeline(

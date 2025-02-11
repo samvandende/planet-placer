@@ -1,3 +1,4 @@
+use utils::*;
 use winit::{
     event::*,
     event_loop::EventLoop,
@@ -5,6 +6,7 @@ use winit::{
 };
 
 mod setup;
+mod utils;
 
 pub fn main() -> anyhow::Result<()> {
     env_logger::init();
@@ -19,8 +21,8 @@ pub fn main() -> anyhow::Result<()> {
     let mut surface_configured =
         setup::configure_surface(&surface, &device, &mut config, window.inner_size());
     let triangle_pipeline = setup::triangle::render_pipeline(&device, &config)?;
-    let (triangle_vertex_buffer, _) = setup::triangle::vertex_buffer(&device);
-    let (triangle_index_buffer, len) = setup::triangle::index_buffer(&device);
+    let triangle_vertex_buffer = setup::triangle::vertex_buffer(&device);
+    let triangle_index_buffer = setup::triangle::index_buffer(&device);
 
     event_loop.run(move |event, control_flow| match event {
         Event::WindowEvent {
@@ -45,7 +47,6 @@ pub fn main() -> anyhow::Result<()> {
                     &triangle_pipeline,
                     &triangle_vertex_buffer,
                     &triangle_index_buffer,
-                    len,
                 ) {
                     Ok(_) => {}
                     Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
@@ -91,9 +92,8 @@ fn render_triangle(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     triangle_pipeline: &wgpu::RenderPipeline,
-    vertex_buffer: &wgpu::Buffer,
-    index_buffer: &wgpu::Buffer,
-    len: usize,
+    vertex_buffer: &Buffer<setup::triangle::Vertex>,
+    index_buffer: &Buffer<u16>,
 ) -> Result<(), wgpu::SurfaceError> {
     let output = surface.get_current_texture()?;
 
@@ -126,9 +126,9 @@ fn render_triangle(
         });
 
         render_pass.set_pipeline(triangle_pipeline);
-        render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-        render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-        render_pass.draw_indexed(0..len as _, 0, 0..1);
+        render_pass.set_typed_vertex_buffer(0, vertex_buffer);
+        render_pass.set_typed_index_buffer(index_buffer);
+        render_pass.draw_indexed(0..index_buffer.len as _, 0, 0..1);
     }
 
     queue.submit(std::iter::once(encoder.finish()));
