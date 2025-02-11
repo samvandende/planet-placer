@@ -1,3 +1,4 @@
+use utils::*;
 use winit::{
     event::*,
     event_loop::EventLoop,
@@ -5,6 +6,8 @@ use winit::{
 };
 
 mod setup;
+mod triangle;
+mod utils;
 
 pub fn main() -> anyhow::Result<()> {
     env_logger::init();
@@ -18,10 +21,21 @@ pub fn main() -> anyhow::Result<()> {
     let mut config = setup::surface_config(&surface, &adapter);
     let mut surface_configured =
         setup::configure_surface(&surface, &device, &mut config, window.inner_size());
-    let triangle_pipeline = setup::triangle::render_pipeline(&device, &config)?;
-    let (triangle_vertex_buffer, _) = setup::triangle::vertex_buffer(&device);
-    let (triangle_index_buffer, len) = setup::triangle::index_buffer(&device);
 
+    let mut camera = camera::Camera {
+        eye: glam::vec3(0., 1., 2.),
+        target: glam::Vec3::ZERO,
+        up: glam::Vec3::Y,
+        aspect: config.width as f32 / config.height as f32,
+        fov_y: 45f32.to_radians(),
+        z_near: 0.1,
+        z_far: 100.,
+    };
+    let camera_uniform = camera::uniform_buffer(&device);
+
+    let triangle = triangle::Triangle::new(&device, &config, &camera_uniform)?;
+
+    let start = std::time::Instant::now();
     event_loop.run(move |event, control_flow| match event {
         Event::WindowEvent {
             ref event,
@@ -30,6 +44,7 @@ pub fn main() -> anyhow::Result<()> {
             WindowEvent::Resized(new_size) => {
                 surface_configured =
                     setup::configure_surface(&surface, &device, &mut config, *new_size);
+                camera.aspect = config.width as f32 / config.height as f32;
             }
             WindowEvent::RedrawRequested => {
                 window.request_redraw();
@@ -38,15 +53,9 @@ pub fn main() -> anyhow::Result<()> {
                     return;
                 }
 
-                match render_triangle(
-                    &surface,
-                    &device,
-                    &queue,
-                    &triangle_pipeline,
-                    &triangle_vertex_buffer,
-                    &triangle_index_buffer,
-                    len,
-                ) {
+                update(start.elapsed().as_secs_f32(), &mut camera);
+                camera::write_view_projection(&queue, &camera, &camera_uniform);
+                match triangle::render(&surface, &device, &queue, &triangle) {
                     Ok(_) => {}
                     Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                         surface_configured = setup::configure_surface(
@@ -86,53 +95,8 @@ pub fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn render_triangle(
-    surface: &wgpu::Surface,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    triangle_pipeline: &wgpu::RenderPipeline,
-    vertex_buffer: &wgpu::Buffer,
-    index_buffer: &wgpu::Buffer,
-    len: usize,
-) -> Result<(), wgpu::SurfaceError> {
-    let output = surface.get_current_texture()?;
-
-    let view = output
-        .texture
-        .create_view(&wgpu::TextureViewDescriptor::default());
-    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        label: Some("Render Encoder"),
-    });
-
-    {
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Render Pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.1,
-                        g: 0.2,
-                        b: 0.3,
-                        a: 1.0,
-                    }),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: None,
-            occlusion_query_set: None,
-            timestamp_writes: None,
-        });
-
-        render_pass.set_pipeline(triangle_pipeline);
-        render_pass.set_vertex_buffer(0, vertex_buffer.slice(..));
-        render_pass.set_index_buffer(index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-        render_pass.draw_indexed(0..len as _, 0, 0..1);
-    }
-
-    queue.submit(std::iter::once(encoder.finish()));
-    output.present();
-
-    Ok(())
+fn update(t: f32, camera: &mut camera::Camera) {
+    let (x, z) = (2. * t).sin_cos();
+    camera.eye.x = 2. * x;
+    camera.eye.z = 2. * z;
 }
