@@ -1,5 +1,5 @@
 use std::marker::PhantomData;
-use wgpu::util::{DeviceExt, RenderEncoder};
+use wgpu::util::DeviceExt;
 
 pub struct TypedBufferDescriptor<'a> {
     pub label: wgpu::Label<'a>,
@@ -39,7 +39,7 @@ pub trait BufferDeviceExt<'a, T: bytemuck::Pod + bytemuck::Zeroable> {
 }
 
 pub trait BufferQueueExt<T: bytemuck::Pod + bytemuck::Zeroable> {
-    fn write_typed_buffer(&self, buffer: &Buffer<T>, offset: u64, data: &[T]) {}
+    fn write_typed_buffer(&self, buffer: &Buffer<T>, offset: u64, data: &[T]);
 }
 
 pub trait BufferVertexRenderPassExt<T> {
