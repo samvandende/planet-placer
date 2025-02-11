@@ -26,9 +26,20 @@ pub struct Buffer<T> {
     _type: PhantomData<T>,
 }
 
+impl<T> std::ops::Deref for Buffer<T> {
+    type Target = wgpu::Buffer;
+    fn deref(&self) -> &Self::Target {
+        &self.buffer
+    }
+}
+
 pub trait BufferDeviceExt<'a, T: bytemuck::Pod + bytemuck::Zeroable> {
     fn create_typed_buffer(&self, desc: &TypedBufferDescriptor) -> Buffer<T>;
     fn create_typed_buffer_init(&self, desc: &TypedBufferInitDescriptor<'a, T>) -> Buffer<T>;
+}
+
+pub trait BufferQueueExt<T: bytemuck::Pod + bytemuck::Zeroable> {
+    fn write_typed_buffer(&self, buffer: &Buffer<T>, offset: u64, data: &[T]) {}
 }
 
 pub trait BufferVertexRenderPassExt<T> {
@@ -70,6 +81,12 @@ impl<'a, T: Sized + bytemuck::Pod + bytemuck::Zeroable> BufferDeviceExt<'a, T> f
             len,
             _type: Default::default(),
         }
+    }
+}
+
+impl<T: bytemuck::Pod + bytemuck::Zeroable> BufferQueueExt<T> for wgpu::Queue {
+    fn write_typed_buffer(&self, buffer: &Buffer<T>, offset: u64, data: &[T]) {
+        self.write_buffer(&buffer.buffer, offset, bytemuck::cast_slice(data));
     }
 }
 
