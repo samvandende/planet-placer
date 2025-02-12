@@ -22,15 +22,12 @@ pub fn main() -> anyhow::Result<()> {
     let mut surface_configured =
         setup::configure_surface(&surface, &device, &mut config, window.inner_size());
 
-    let mut camera = camera::Camera {
-        eye: glam::vec3(0., 1., 2.),
-        target: glam::Vec3::ZERO,
-        up: glam::Vec3::Y,
-        aspect: config.width as f32 / config.height as f32,
-        fov_y: 45f32.to_radians(),
-        z_near: 0.1,
-        z_far: 100.,
-    };
+    let mut camera = camera::Camera::new(
+        &device,
+        &config,
+        glam::vec3(0., 1., 2.),
+        glam::vec3(0., -1., -2.).normalize(),
+    );
     let camera_uniform = camera::uniform_buffer(&device);
 
     let triangle = triangle::Triangle::new(&device, &config, &camera_uniform)?;
@@ -44,7 +41,7 @@ pub fn main() -> anyhow::Result<()> {
             WindowEvent::Resized(new_size) => {
                 surface_configured =
                     setup::configure_surface(&surface, &device, &mut config, *new_size);
-                camera.aspect = config.width as f32 / config.height as f32;
+                camera.resize(&device, &config);
             }
             WindowEvent::RedrawRequested => {
                 window.request_redraw();
@@ -55,7 +52,7 @@ pub fn main() -> anyhow::Result<()> {
 
                 update(start.elapsed().as_secs_f32(), &mut camera);
                 camera::write_view_projection(&queue, &camera, &camera_uniform);
-                match triangle::render(&surface, &device, &queue, &triangle) {
+                match triangle::render(&surface, &device, &queue, &camera, &triangle) {
                     Ok(_) => {}
                     Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                         surface_configured = setup::configure_surface(
@@ -97,6 +94,7 @@ pub fn main() -> anyhow::Result<()> {
 
 fn update(t: f32, camera: &mut camera::Camera) {
     let (x, z) = (2. * t).sin_cos();
-    camera.eye.x = 2. * x;
-    camera.eye.z = 2. * z;
+    camera.position.x = 2. * x;
+    camera.position.z = 2. * z;
+    camera.look_dir = -camera.position.normalize()
 }
