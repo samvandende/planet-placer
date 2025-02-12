@@ -1,14 +1,19 @@
 use std::marker::PhantomData;
 use wgpu::util::DeviceExt;
 
+/// Describes a Buffer when allocating.
 pub struct TypedBufferDescriptor<'a> {
+    /// Debug label of a buffer. This will show up in graphics debuggers for easy identification.
     pub label: wgpu::Label<'a>,
+    /// Lenght of the buffer on creation.
     pub len: usize,
+    /// Usages of a buffer. If the buffer is used in any way that isn't specified here, the operation
+    /// will panic.
     pub usage: wgpu::BufferUsages,
     pub mapped_at_creation: bool,
 }
 
-/// Describes a [Buffer](crate::Buffer) when allocating.
+/// Describes a Buffer when allocating.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct TypedBufferInitDescriptor<'a, T: bytemuck::Pod + bytemuck::Zeroable> {
     /// Debug label of a buffer. This will show up in graphics debuggers for easy identification.
@@ -20,6 +25,7 @@ pub struct TypedBufferInitDescriptor<'a, T: bytemuck::Pod + bytemuck::Zeroable> 
     pub usage: wgpu::BufferUsages,
 }
 
+/// A GPU buffer with associated type and length (like a dynamically allocated array)
 pub struct Buffer<T> {
     buffer: wgpu::Buffer,
     pub len: usize,

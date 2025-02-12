@@ -133,7 +133,7 @@ impl Triangle {
                 unclipped_depth: false,
                 conservative: false,
             },
-            depth_stencil: None,
+            depth_stencil: Some(camera::depth_stencil_state()),
             multisample: wgpu::MultisampleState {
                 count: 1,
                 mask: !0,
@@ -156,6 +156,7 @@ pub fn render(
     surface: &wgpu::Surface,
     device: &wgpu::Device,
     queue: &wgpu::Queue,
+    camera: &camera::Camera,
     triangle: &Triangle,
 ) -> Result<(), wgpu::SurfaceError> {
     let output = surface.get_current_texture()?;
@@ -183,7 +184,7 @@ pub fn render(
                     store: wgpu::StoreOp::Store,
                 },
             })],
-            depth_stencil_attachment: None,
+            depth_stencil_attachment: Some(camera.depth_stencil_attachment()),
             occlusion_query_set: None,
             timestamp_writes: None,
         });
