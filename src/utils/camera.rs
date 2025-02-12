@@ -93,7 +93,7 @@ pub fn write_view_projection(
     camera: &Camera,
     uniform_buffer: &Buffer<CameraUniform>,
 ) {
-    let view = glam::Mat4::look_to_rh(camera.position, camera.look_dir, camera.up);
+    let view = glam::Mat4::look_to_rh(Vec3::ZERO, camera.look_dir, camera.up);
     let proj = glam::Mat4::perspective_rh(camera.fov_y, camera.aspect, camera.z_near, camera.z_far);
     let view_proj = proj * view;
     let position = vec4(camera.position.x, camera.position.y, camera.position.z, 0.0);
