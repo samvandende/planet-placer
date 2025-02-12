@@ -1,3 +1,5 @@
+pub use glam::*;
+
 mod buffer;
 pub use buffer::*;
 

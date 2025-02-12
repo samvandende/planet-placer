@@ -9,6 +9,8 @@ use winit::window::{Window, WindowBuilder};
 
 pub type WindowSize = winit::dpi::PhysicalSize<u32>;
 
+const FEATURES: wgpu::Features = wgpu::Features::POLYGON_MODE_LINE;
+
 pub fn window(window_target: &EventLoopWindowTarget<()>) -> Result<Window> {
     Ok(WindowBuilder::new().build(window_target)?)
 }
@@ -52,7 +54,7 @@ pub async fn device_queue_async(adapter: &wgpu::Adapter) -> Result<(wgpu::Device
     Ok(adapter
         .request_device(
             &wgpu::DeviceDescriptor {
-                required_features: wgpu::Features::empty(),
+                required_features: FEATURES,
                 required_limits: wgpu::Limits::default(),
                 label: None,
                 memory_hints: Default::default(),

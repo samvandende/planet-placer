@@ -5,8 +5,8 @@ use anyhow::Result;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
-    position: [f32; 3],
-    color: [f32; 3],
+    position: Vec3,
+    color: Vec3,
 }
 
 impl Vertex {
@@ -24,56 +24,114 @@ impl Vertex {
     }
 }
 
-const VERTICES: &[Vertex] = &[
-    Vertex {
-        position: [0.0, 0.5, 0.0],
-        color: [1.0, 0.0, 0.0],
-    },
-    Vertex {
-        position: [-0.5, -0.5, 0.0],
-        color: [0.0, 1.0, 0.0],
-    },
-    Vertex {
-        position: [0.5, -0.5, 0.0],
-        color: [0.0, 0.0, 1.0],
-    },
+const PHI: f32 = 1.61803398875; // Golden ratio
+
+#[rustfmt::skip]
+pub const VERTICES: &[Vertex] = &[
+    Vertex { position: Vec3::new(-1.0,  PHI,  0.0), color: Vec3::ONE },
+    Vertex { position: Vec3::new( 1.0,  PHI,  0.0), color: Vec3::ONE },
+    Vertex { position: Vec3::new(-1.0, -PHI,  0.0), color: Vec3::ONE },
+    Vertex { position: Vec3::new( 1.0, -PHI,  0.0), color: Vec3::ONE },
+    Vertex { position: Vec3::new( 0.0, -1.0,  PHI), color: Vec3::ONE },
+    Vertex { position: Vec3::new( 0.0,  1.0,  PHI), color: Vec3::ONE },
+    Vertex { position: Vec3::new( 0.0, -1.0, -PHI), color: Vec3::ONE },
+    Vertex { position: Vec3::new( 0.0,  1.0, -PHI), color: Vec3::ONE },
+    Vertex { position: Vec3::new( PHI,  0.0, -1.0), color: Vec3::ONE },
+    Vertex { position: Vec3::new( PHI,  0.0,  1.0), color: Vec3::ONE },
+    Vertex { position: Vec3::new(-PHI,  0.0, -1.0), color: Vec3::ONE },
+    Vertex { position: Vec3::new(-PHI,  0.0,  1.0), color: Vec3::ONE },
 ];
 
-const INDICES: &[u16] = &[0, 1, 2];
+#[rustfmt::skip]
+pub const INDICES: &[u16] = &[
+    0, 11, 5,  0, 5, 1,  0, 1, 7,  0, 7, 10,  0, 10, 11,
+    1, 5, 9,  5, 11, 4,  11, 10, 2,  10, 7, 6,  7, 1, 8,
+    3, 9, 4,  3, 4, 2,  3, 2, 6,  3, 6, 8,  3, 8, 9,
+    4, 9, 5,  2, 4, 11,  6, 2, 10,  8, 6, 7,  9, 8, 1,
+];
 
-pub fn vertex_buffer(device: &wgpu::Device) -> Buffer<Vertex> {
+fn subdivide(vertices: &mut Vec<Vertex>, indices: &mut Vec<u16>) {
+    let mut new_indices = Vec::new();
+    let mut midpoint_cache = std::collections::HashMap::new();
+
+    let midpoint = |a: u16,
+                    b: u16,
+                    vertices: &mut Vec<Vertex>,
+                    cache: &mut std::collections::HashMap<(u16, u16), u16>|
+     -> u16 {
+        let key = if a < b { (a, b) } else { (b, a) };
+        if let Some(&mid) = cache.get(&key) {
+            return mid;
+        }
+        let mid_pos = (vertices[a as usize].position + vertices[b as usize].position) * 0.5;
+        let mid_index = vertices.len() as u16;
+        vertices.push(Vertex {
+            position: mid_pos.normalize(),
+            color: Vec3::ONE,
+        });
+        cache.insert(key, mid_index);
+        mid_index
+    };
+
+    for chunk in indices.chunks_exact(3) {
+        let m1 = midpoint(chunk[0], chunk[1], vertices, &mut midpoint_cache);
+        let m2 = midpoint(chunk[1], chunk[2], vertices, &mut midpoint_cache);
+        let m3 = midpoint(chunk[2], chunk[0], vertices, &mut midpoint_cache);
+
+        new_indices.extend_from_slice(&[
+            chunk[0], m1, m3, m1, chunk[1], m2, m3, m2, chunk[2], m1, m2, m3,
+        ]);
+    }
+    *indices = new_indices;
+}
+
+pub fn subdivided_icosahedron(subdivisions: usize) -> (Vec<Vertex>, Vec<u16>) {
+    let mut vertices = VERTICES.to_owned();
+    let mut indices = INDICES.to_owned();
+    for vertex in &mut vertices {
+        vertex.position = vertex.position.normalize();
+    }
+    for _ in 0..subdivisions {
+        subdivide(&mut vertices, &mut indices);
+    }
+    (vertices, indices)
+}
+
+pub fn vertex_buffer(device: &wgpu::Device, vertices: &[Vertex]) -> Buffer<Vertex> {
     device.create_typed_buffer_init(&TypedBufferInitDescriptor {
         label: Some("Vertex Buffer"),
-        contents: VERTICES,
+        contents: vertices,
         usage: wgpu::BufferUsages::VERTEX,
     })
 }
 
-pub fn index_buffer(device: &wgpu::Device) -> Buffer<u16> {
+pub fn index_buffer(device: &wgpu::Device, indices: &[u16]) -> Buffer<u16> {
     device.create_typed_buffer_init(&TypedBufferInitDescriptor {
         label: Some("Index Buffer"),
-        contents: INDICES,
+        contents: indices,
         usage: wgpu::BufferUsages::INDEX,
     })
 }
 
-pub struct Triangle {
+pub struct Icosahedron {
     vertex_buffer: Buffer<Vertex>,
     index_buffer: Buffer<u16>,
     bind_group: wgpu::BindGroup,
     render_pipeline: wgpu::RenderPipeline,
 }
 
-impl Triangle {
+impl Icosahedron {
     pub fn new(
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
         camera_uniform: &Buffer<glam::Mat4>,
+        subdivisions: usize,
     ) -> Result<Self> {
-        let vertex_buffer = vertex_buffer(device);
-        let index_buffer = index_buffer(device);
+        let (vertices, indices) = subdivided_icosahedron(subdivisions);
+        let vertex_buffer = vertex_buffer(device, &vertices);
+        let index_buffer = index_buffer(device, &indices);
 
-        let shader = setup::shader(device, "shaders/triangle.wgsl")?;
+        let shader = setup::shader(device, "shaders/simple_3d.wgsl")?;
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[wgpu::BindGroupLayoutEntry {
@@ -129,7 +187,7 @@ impl Triangle {
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: wgpu::PolygonMode::Fill,
+                polygon_mode: wgpu::PolygonMode::Line,
                 unclipped_depth: false,
                 conservative: false,
             },
@@ -143,7 +201,7 @@ impl Triangle {
             cache: None,
         });
 
-        Ok(Triangle {
+        Ok(Icosahedron {
             vertex_buffer,
             index_buffer,
             bind_group,
@@ -157,7 +215,7 @@ pub fn render(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     camera: &camera::Camera,
-    triangle: &Triangle,
+    triangle: &Icosahedron,
 ) -> Result<(), wgpu::SurfaceError> {
     let output = surface.get_current_texture()?;
 
