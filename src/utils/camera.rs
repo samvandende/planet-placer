@@ -1,15 +1,25 @@
 use crate::utils::*;
 
 pub struct Camera {
-    pub position: glam::Vec3,
-    pub look_dir: glam::Vec3,
-    pub up: glam::Vec3,
+    pub position: Vec3,
+    pub look_dir: Vec3,
+    pub up: Vec3,
     pub fov_y: f32,
     pub z_near: f32,
     pub z_far: f32,
     aspect: f32,
     depth_texture: wgpu::Texture,
     depth_view: wgpu::TextureView,
+}
+
+#[repr(C)]
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct CameraUniform {
+    view_proj: Mat4,
+    position: Vec4,
+    z_near: f32,
+    z_far: f32,
+    _padding: u64,
 }
 
 impl Camera {
@@ -69,7 +79,7 @@ impl Camera {
     }
 }
 
-pub fn uniform_buffer(device: &wgpu::Device) -> Buffer<glam::Mat4> {
+pub fn uniform_buffer(device: &wgpu::Device) -> Buffer<CameraUniform> {
     device.create_typed_buffer(&TypedBufferDescriptor {
         label: Some("Camera Uniform Buffer"),
         len: 1,
@@ -81,12 +91,23 @@ pub fn uniform_buffer(device: &wgpu::Device) -> Buffer<glam::Mat4> {
 pub fn write_view_projection(
     queue: &wgpu::Queue,
     camera: &Camera,
-    uniform_buffer: &Buffer<glam::Mat4>,
+    uniform_buffer: &Buffer<CameraUniform>,
 ) {
     let view = glam::Mat4::look_to_rh(camera.position, camera.look_dir, camera.up);
     let proj = glam::Mat4::perspective_rh(camera.fov_y, camera.aspect, camera.z_near, camera.z_far);
-    let view_projection = proj * view;
-    queue.write_typed_buffer(uniform_buffer, 0, &[view_projection]);
+    let view_proj = proj * view;
+    let position = vec4(camera.position.x, camera.position.y, camera.position.z, 0.0);
+    queue.write_typed_buffer(
+        uniform_buffer,
+        0,
+        &[CameraUniform {
+            view_proj,
+            position,
+            z_near: camera.z_near,
+            z_far: camera.z_far,
+            _padding: 0,
+        }],
+    );
 }
 
 pub fn depth_stencil_state() -> wgpu::DepthStencilState {

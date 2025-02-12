@@ -124,7 +124,7 @@ impl Icosahedron {
     pub fn new(
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
-        camera_uniform: &Buffer<glam::Mat4>,
+        camera_uniform: &Buffer<camera::CameraUniform>,
         subdivisions: usize,
     ) -> Result<Self> {
         let (vertices, indices) = subdivided_icosahedron(subdivisions);
