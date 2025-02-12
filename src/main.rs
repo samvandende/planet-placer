@@ -5,8 +5,8 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
 };
 
+mod icosahedron;
 mod setup;
-mod triangle;
 mod utils;
 
 pub fn main() -> anyhow::Result<()> {
@@ -30,7 +30,7 @@ pub fn main() -> anyhow::Result<()> {
     );
     let camera_uniform = camera::uniform_buffer(&device);
 
-    let triangle = triangle::Triangle::new(&device, &config, &camera_uniform)?;
+    let triangle = icosahedron::Icosahedron::new(&device, &config, &camera_uniform)?;
 
     let start = std::time::Instant::now();
     event_loop.run(move |event, control_flow| match event {
@@ -52,7 +52,7 @@ pub fn main() -> anyhow::Result<()> {
 
                 update(start.elapsed().as_secs_f32(), &mut camera);
                 camera::write_view_projection(&queue, &camera, &camera_uniform);
-                match triangle::render(&surface, &device, &queue, &camera, &triangle) {
+                match icosahedron::render(&surface, &device, &queue, &camera, &triangle) {
                     Ok(_) => {}
                     Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                         surface_configured = setup::configure_surface(

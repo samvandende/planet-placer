@@ -66,14 +66,14 @@ pub fn index_buffer(device: &wgpu::Device) -> Buffer<u16> {
     })
 }
 
-pub struct Triangle {
+pub struct Icosahedron {
     vertex_buffer: Buffer<Vertex>,
     index_buffer: Buffer<u16>,
     bind_group: wgpu::BindGroup,
     render_pipeline: wgpu::RenderPipeline,
 }
 
-impl Triangle {
+impl Icosahedron {
     pub fn new(
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
@@ -82,7 +82,7 @@ impl Triangle {
         let vertex_buffer = vertex_buffer(device);
         let index_buffer = index_buffer(device);
 
-        let shader = setup::shader(device, "shaders/triangle.wgsl")?;
+        let shader = setup::shader(device, "shaders/simple_3d.wgsl")?;
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[wgpu::BindGroupLayoutEntry {
@@ -152,7 +152,7 @@ impl Triangle {
             cache: None,
         });
 
-        Ok(Triangle {
+        Ok(Icosahedron {
             vertex_buffer,
             index_buffer,
             bind_group,
@@ -166,7 +166,7 @@ pub fn render(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     camera: &camera::Camera,
-    triangle: &Triangle,
+    triangle: &Icosahedron,
 ) -> Result<(), wgpu::SurfaceError> {
     let output = surface.get_current_texture()?;
 
