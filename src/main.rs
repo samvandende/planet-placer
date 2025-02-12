@@ -25,7 +25,7 @@ pub fn main() -> anyhow::Result<()> {
     let mut camera = camera::Camera::new(
         &device,
         &config,
-        glam::vec3(0., 1., 2.),
+        glam::vec3(0., 0., 1.),
         glam::vec3(0., -1., -2.).normalize(),
     );
     let camera_uniform = camera::uniform_buffer(&device);
@@ -93,8 +93,8 @@ pub fn main() -> anyhow::Result<()> {
 }
 
 fn update(t: f32, camera: &mut camera::Camera) {
-    let (x, z) = (2. * t).sin_cos();
+    let (x, y) = (2. * t).sin_cos();
     camera.position.x = 6. * x;
-    camera.position.z = 6. * z;
+    camera.position.y = 6. * y;
     camera.look_dir = -camera.position.normalize()
 }

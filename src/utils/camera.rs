@@ -40,7 +40,7 @@ impl Camera {
         Camera {
             position,
             look_dir,
-            up: glam::Vec3::Y,
+            up: glam::Vec3::Z,
             aspect,
             fov_y: 45f32.to_radians(),
             z_near: 0.01,
