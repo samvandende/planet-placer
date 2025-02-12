@@ -16,7 +16,7 @@ pub struct Camera {
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
     view_proj: Mat4,
-    position: Vec4,
+    position: PackedVec3,
     z_near: f32,
     z_far: f32,
     _padding: u64,
@@ -96,7 +96,7 @@ pub fn write_view_projection(
     let view = glam::Mat4::look_to_rh(Vec3::ZERO, camera.look_dir, camera.up);
     let proj = glam::Mat4::perspective_rh(camera.fov_y, camera.aspect, camera.z_near, camera.z_far);
     let view_proj = proj * view;
-    let position = vec4(camera.position.x, camera.position.y, camera.position.z, 0.0);
+    let position = camera.position.into();
     queue.write_typed_buffer(
         uniform_buffer,
         0,

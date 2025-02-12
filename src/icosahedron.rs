@@ -3,15 +3,16 @@ use crate::utils::*;
 use anyhow::Result;
 
 #[repr(C)]
-#[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
-    position: Vec3,
+    position: PackedVec3,
     color: Vec3,
+    _padding: f32,
 }
 
 impl Vertex {
     const ATTRIBS: [wgpu::VertexAttribute; 2] =
-        wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x3];
+        wgpu::vertex_attr_array![0 => Uint32x4, 1 => Float32x4];
 
     fn desc() -> wgpu::VertexBufferLayout<'static> {
         use std::mem;
@@ -27,19 +28,19 @@ impl Vertex {
 const PHI: f32 = 1.61803398875; // Golden ratio
 
 #[rustfmt::skip]
-pub const VERTICES: &[Vertex] = &[
-    Vertex { position: Vec3::new(-1.0,  PHI,  0.0), color: Vec3::ONE },
-    Vertex { position: Vec3::new( 1.0,  PHI,  0.0), color: Vec3::ONE },
-    Vertex { position: Vec3::new(-1.0, -PHI,  0.0), color: Vec3::ONE },
-    Vertex { position: Vec3::new( 1.0, -PHI,  0.0), color: Vec3::ONE },
-    Vertex { position: Vec3::new( 0.0, -1.0,  PHI), color: Vec3::ONE },
-    Vertex { position: Vec3::new( 0.0,  1.0,  PHI), color: Vec3::ONE },
-    Vertex { position: Vec3::new( 0.0, -1.0, -PHI), color: Vec3::ONE },
-    Vertex { position: Vec3::new( 0.0,  1.0, -PHI), color: Vec3::ONE },
-    Vertex { position: Vec3::new( PHI,  0.0, -1.0), color: Vec3::ONE },
-    Vertex { position: Vec3::new( PHI,  0.0,  1.0), color: Vec3::ONE },
-    Vertex { position: Vec3::new(-PHI,  0.0, -1.0), color: Vec3::ONE },
-    Vertex { position: Vec3::new(-PHI,  0.0,  1.0), color: Vec3::ONE },
+pub const VERTICES: &[Vec3] = &[
+    Vec3::new(-1.0,  PHI,  0.0),
+    Vec3::new( 1.0,  PHI,  0.0),
+    Vec3::new(-1.0, -PHI,  0.0),
+    Vec3::new( 1.0, -PHI,  0.0),
+    Vec3::new( 0.0, -1.0,  PHI),
+    Vec3::new( 0.0,  1.0,  PHI),
+    Vec3::new( 0.0, -1.0, -PHI),
+    Vec3::new( 0.0,  1.0, -PHI),
+    Vec3::new( PHI,  0.0, -1.0),
+    Vec3::new( PHI,  0.0,  1.0),
+    Vec3::new(-PHI,  0.0, -1.0),
+    Vec3::new(-PHI,  0.0,  1.0),
 ];
 
 #[rustfmt::skip]
@@ -50,25 +51,22 @@ pub const INDICES: &[u16] = &[
     4, 9, 5,  2, 4, 11,  6, 2, 10,  8, 6, 7,  9, 8, 1,
 ];
 
-fn subdivide(vertices: &mut Vec<Vertex>, indices: &mut Vec<u16>) {
+fn subdivide(vertices: &mut Vec<Vec3>, indices: &mut Vec<u16>) {
     let mut new_indices = Vec::new();
     let mut midpoint_cache = std::collections::HashMap::new();
 
     let midpoint = |a: u16,
                     b: u16,
-                    vertices: &mut Vec<Vertex>,
+                    vertices: &mut Vec<Vec3>,
                     cache: &mut std::collections::HashMap<(u16, u16), u16>|
      -> u16 {
         let key = if a < b { (a, b) } else { (b, a) };
         if let Some(&mid) = cache.get(&key) {
             return mid;
         }
-        let mid_pos = (vertices[a as usize].position + vertices[b as usize].position) * 0.5;
+        let mid_pos = (vertices[a as usize] + vertices[b as usize]) * 0.5;
         let mid_index = vertices.len() as u16;
-        vertices.push(Vertex {
-            position: mid_pos.normalize(),
-            color: Vec3::ONE,
-        });
+        vertices.push(mid_pos.normalize());
         cache.insert(key, mid_index);
         mid_index
     };
@@ -89,11 +87,19 @@ pub fn subdivided_icosahedron(subdivisions: usize) -> (Vec<Vertex>, Vec<u16>) {
     let mut vertices = VERTICES.to_owned();
     let mut indices = INDICES.to_owned();
     for vertex in &mut vertices {
-        vertex.position = vertex.position.normalize();
+        *vertex = vertex.normalize();
     }
     for _ in 0..subdivisions {
         subdivide(&mut vertices, &mut indices);
     }
+    let vertices = vertices
+        .into_iter()
+        .map(|vertex| Vertex {
+            position: vertex.into(),
+            color: Vec3::ONE,
+            _padding: 0.,
+        })
+        .collect();
     (vertices, indices)
 }
 
