@@ -28,18 +28,18 @@ const PHI: f32 = 1.61803398875; // Golden ratio
 
 #[rustfmt::skip]
 pub const VERTICES: &[Vertex] = &[
-    Vertex { position: Vec3::new(-1.0,  PHI,  0.0), color: Vec3::new(1.0, 0.0, 0.0) },
-    Vertex { position: Vec3::new( 1.0,  PHI,  0.0), color: Vec3::new(0.0, 1.0, 0.0) },
-    Vertex { position: Vec3::new(-1.0, -PHI,  0.0), color: Vec3::new(0.0, 0.0, 1.0) },
-    Vertex { position: Vec3::new( 1.0, -PHI,  0.0), color: Vec3::new(1.0, 1.0, 0.0) },
-    Vertex { position: Vec3::new( 0.0, -1.0,  PHI), color: Vec3::new(1.0, 0.0, 1.0) },
-    Vertex { position: Vec3::new( 0.0,  1.0,  PHI), color: Vec3::new(0.0, 1.0, 1.0) },
-    Vertex { position: Vec3::new( 0.0, -1.0, -PHI), color: Vec3::new(0.5, 0.5, 0.5) },
-    Vertex { position: Vec3::new( 0.0,  1.0, -PHI), color: Vec3::new(0.8, 0.3, 0.3) },
-    Vertex { position: Vec3::new( PHI,  0.0, -1.0), color: Vec3::new(0.3, 0.8, 0.3) },
-    Vertex { position: Vec3::new( PHI,  0.0,  1.0), color: Vec3::new(0.3, 0.3, 0.8) },
-    Vertex { position: Vec3::new(-PHI,  0.0, -1.0), color: Vec3::new(0.7, 0.7, 0.2) },
-    Vertex { position: Vec3::new(-PHI,  0.0,  1.0), color: Vec3::new(0.2, 0.7, 0.7) },
+    Vertex { position: Vec3::new(-1.0,  PHI,  0.0), color: Vec3::ONE },
+    Vertex { position: Vec3::new( 1.0,  PHI,  0.0), color: Vec3::ONE },
+    Vertex { position: Vec3::new(-1.0, -PHI,  0.0), color: Vec3::ONE },
+    Vertex { position: Vec3::new( 1.0, -PHI,  0.0), color: Vec3::ONE },
+    Vertex { position: Vec3::new( 0.0, -1.0,  PHI), color: Vec3::ONE },
+    Vertex { position: Vec3::new( 0.0,  1.0,  PHI), color: Vec3::ONE },
+    Vertex { position: Vec3::new( 0.0, -1.0, -PHI), color: Vec3::ONE },
+    Vertex { position: Vec3::new( 0.0,  1.0, -PHI), color: Vec3::ONE },
+    Vertex { position: Vec3::new( PHI,  0.0, -1.0), color: Vec3::ONE },
+    Vertex { position: Vec3::new( PHI,  0.0,  1.0), color: Vec3::ONE },
+    Vertex { position: Vec3::new(-PHI,  0.0, -1.0), color: Vec3::ONE },
+    Vertex { position: Vec3::new(-PHI,  0.0,  1.0), color: Vec3::ONE },
 ];
 
 #[rustfmt::skip]
@@ -50,18 +50,65 @@ pub const INDICES: &[u16] = &[
     4, 9, 5,  2, 4, 11,  6, 2, 10,  8, 6, 7,  9, 8, 1,
 ];
 
-pub fn vertex_buffer(device: &wgpu::Device) -> Buffer<Vertex> {
+fn subdivide(vertices: &mut Vec<Vertex>, indices: &mut Vec<u16>) {
+    let mut new_indices = Vec::new();
+    let mut midpoint_cache = std::collections::HashMap::new();
+
+    let midpoint = |a: u16,
+                    b: u16,
+                    vertices: &mut Vec<Vertex>,
+                    cache: &mut std::collections::HashMap<(u16, u16), u16>|
+     -> u16 {
+        let key = if a < b { (a, b) } else { (b, a) };
+        if let Some(&mid) = cache.get(&key) {
+            return mid;
+        }
+        let mid_pos = (vertices[a as usize].position + vertices[b as usize].position) * 0.5;
+        let mid_index = vertices.len() as u16;
+        vertices.push(Vertex {
+            position: mid_pos.normalize(),
+            color: Vec3::ONE,
+        });
+        cache.insert(key, mid_index);
+        mid_index
+    };
+
+    for chunk in indices.chunks_exact(3) {
+        let m1 = midpoint(chunk[0], chunk[1], vertices, &mut midpoint_cache);
+        let m2 = midpoint(chunk[1], chunk[2], vertices, &mut midpoint_cache);
+        let m3 = midpoint(chunk[2], chunk[0], vertices, &mut midpoint_cache);
+
+        new_indices.extend_from_slice(&[
+            chunk[0], m1, m3, m1, chunk[1], m2, m3, m2, chunk[2], m1, m2, m3,
+        ]);
+    }
+    *indices = new_indices;
+}
+
+pub fn subdivided_icosahedron(subdivisions: usize) -> (Vec<Vertex>, Vec<u16>) {
+    let mut vertices = VERTICES.to_owned();
+    let mut indices = INDICES.to_owned();
+    for vertex in &mut vertices {
+        vertex.position = vertex.position.normalize();
+    }
+    for _ in 0..subdivisions {
+        subdivide(&mut vertices, &mut indices);
+    }
+    (vertices, indices)
+}
+
+pub fn vertex_buffer(device: &wgpu::Device, vertices: &[Vertex]) -> Buffer<Vertex> {
     device.create_typed_buffer_init(&TypedBufferInitDescriptor {
         label: Some("Vertex Buffer"),
-        contents: VERTICES,
+        contents: vertices,
         usage: wgpu::BufferUsages::VERTEX,
     })
 }
 
-pub fn index_buffer(device: &wgpu::Device) -> Buffer<u16> {
+pub fn index_buffer(device: &wgpu::Device, indices: &[u16]) -> Buffer<u16> {
     device.create_typed_buffer_init(&TypedBufferInitDescriptor {
         label: Some("Index Buffer"),
-        contents: INDICES,
+        contents: indices,
         usage: wgpu::BufferUsages::INDEX,
     })
 }
@@ -78,9 +125,11 @@ impl Icosahedron {
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
         camera_uniform: &Buffer<glam::Mat4>,
+        subdivisions: usize,
     ) -> Result<Self> {
-        let vertex_buffer = vertex_buffer(device);
-        let index_buffer = index_buffer(device);
+        let (vertices, indices) = subdivided_icosahedron(subdivisions);
+        let vertex_buffer = vertex_buffer(device, &vertices);
+        let index_buffer = index_buffer(device, &indices);
 
         let shader = setup::shader(device, "shaders/simple_3d.wgsl")?;
 
@@ -138,7 +187,7 @@ impl Icosahedron {
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: wgpu::PolygonMode::Fill,
+                polygon_mode: wgpu::PolygonMode::Line,
                 unclipped_depth: false,
                 conservative: false,
             },

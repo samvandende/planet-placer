@@ -30,7 +30,7 @@ pub fn main() -> anyhow::Result<()> {
     );
     let camera_uniform = camera::uniform_buffer(&device);
 
-    let triangle = icosahedron::Icosahedron::new(&device, &config, &camera_uniform)?;
+    let triangle = icosahedron::Icosahedron::new(&device, &config, &camera_uniform, 4)?;
 
     let start = std::time::Instant::now();
     event_loop.run(move |event, control_flow| match event {
@@ -93,8 +93,8 @@ pub fn main() -> anyhow::Result<()> {
 }
 
 fn update(t: f32, camera: &mut camera::Camera) {
-    let (x, y) = (2. * t).sin_cos();
-    camera.position.x = 6. * x;
-    camera.position.y = 6. * y;
+    let (x, y) = (1.3 * t).sin_cos();
+    camera.position.x = 4. * x;
+    camera.position.y = 4. * y;
     camera.look_dir = -camera.position.normalize()
 }
