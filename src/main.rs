@@ -94,7 +94,7 @@ pub fn main() -> anyhow::Result<()> {
 
 fn update(t: f32, camera: &mut camera::Camera) {
     let (x, z) = (2. * t).sin_cos();
-    camera.position.x = 2. * x;
-    camera.position.z = 2. * z;
+    camera.position.x = 6. * x;
+    camera.position.z = 6. * z;
     camera.look_dir = -camera.position.normalize()
 }

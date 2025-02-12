@@ -5,8 +5,8 @@ use anyhow::Result;
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
-    position: [f32; 3],
-    color: [f32; 3],
+    position: Vec3,
+    color: Vec3,
 }
 
 impl Vertex {
@@ -24,22 +24,31 @@ impl Vertex {
     }
 }
 
-const VERTICES: &[Vertex] = &[
-    Vertex {
-        position: [0.0, 0.5, 0.0],
-        color: [1.0, 0.0, 0.0],
-    },
-    Vertex {
-        position: [-0.5, -0.5, 0.0],
-        color: [0.0, 1.0, 0.0],
-    },
-    Vertex {
-        position: [0.5, -0.5, 0.0],
-        color: [0.0, 0.0, 1.0],
-    },
+const PHI: f32 = 1.61803398875; // Golden ratio
+
+#[rustfmt::skip]
+pub const VERTICES: &[Vertex] = &[
+    Vertex { position: Vec3::new(-1.0,  PHI,  0.0), color: Vec3::new(1.0, 0.0, 0.0) },
+    Vertex { position: Vec3::new( 1.0,  PHI,  0.0), color: Vec3::new(0.0, 1.0, 0.0) },
+    Vertex { position: Vec3::new(-1.0, -PHI,  0.0), color: Vec3::new(0.0, 0.0, 1.0) },
+    Vertex { position: Vec3::new( 1.0, -PHI,  0.0), color: Vec3::new(1.0, 1.0, 0.0) },
+    Vertex { position: Vec3::new( 0.0, -1.0,  PHI), color: Vec3::new(1.0, 0.0, 1.0) },
+    Vertex { position: Vec3::new( 0.0,  1.0,  PHI), color: Vec3::new(0.0, 1.0, 1.0) },
+    Vertex { position: Vec3::new( 0.0, -1.0, -PHI), color: Vec3::new(0.5, 0.5, 0.5) },
+    Vertex { position: Vec3::new( 0.0,  1.0, -PHI), color: Vec3::new(0.8, 0.3, 0.3) },
+    Vertex { position: Vec3::new( PHI,  0.0, -1.0), color: Vec3::new(0.3, 0.8, 0.3) },
+    Vertex { position: Vec3::new( PHI,  0.0,  1.0), color: Vec3::new(0.3, 0.3, 0.8) },
+    Vertex { position: Vec3::new(-PHI,  0.0, -1.0), color: Vec3::new(0.7, 0.7, 0.2) },
+    Vertex { position: Vec3::new(-PHI,  0.0,  1.0), color: Vec3::new(0.2, 0.7, 0.7) },
 ];
 
-const INDICES: &[u16] = &[0, 1, 2];
+#[rustfmt::skip]
+pub const INDICES: &[u16] = &[
+    0, 11, 5,  0, 5, 1,  0, 1, 7,  0, 7, 10,  0, 10, 11,
+    1, 5, 9,  5, 11, 4,  11, 10, 2,  10, 7, 6,  7, 1, 8,
+    3, 9, 4,  3, 4, 2,  3, 2, 6,  3, 6, 8,  3, 8, 9,
+    4, 9, 5,  2, 4, 11,  6, 2, 10,  8, 6, 7,  9, 8, 1,
+];
 
 pub fn vertex_buffer(device: &wgpu::Device) -> Buffer<Vertex> {
     device.create_typed_buffer_init(&TypedBufferInitDescriptor {
