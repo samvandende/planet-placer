@@ -1,5 +1,6 @@
 struct CameraUniform {
-    view_proj: mat4x4<f32>,
+    view: mat4x4<f32>,
+    projection: mat4x4<f32>,
     packed_position: vec4<u32>,
     z_near: f32,
     z_far: f32,
@@ -52,13 +53,28 @@ fn vs_main(
 ) -> VertexOutput {
     var out: VertexOutput;
     out.color = model.color.xyz;
-    out.clip_position = camera.view_proj * (vec4<f32>(unpack_position(model.position), 1.0));
+
+    let view_pos = camera.view * (vec4<f32>(unpack_position(model.position), 1.0));
+    let z_view = -view_pos.z;
+    let log_depth = (log(z_view) - log(camera.z_near)) / (log(camera.z_far) - log(camera.z_near));
+
+    out.clip_position = camera.projection * view_pos;
+    out.clip_position.z = log_depth * out.clip_position.w;
+
+    // out.clip_position.z = log_depth * out.clip_position.w;
+
     return out;
 }
 
 // Fragment shader
 
+struct FragmentOutput {
+    @location(0) color: vec4<f32>,
+}
+
 @fragment
-fn fs_main(in: VertexOutput) -> @location(0) vec4<f32> {
-    return vec4<f32>(in.color, 1.0);
+fn fs_main(in: VertexOutput) -> FragmentOutput {
+    var out: FragmentOutput;
+    out.color = vec4<f32>(in.color, 1.0);
+    return out;
 }
