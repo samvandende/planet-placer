@@ -9,6 +9,8 @@ mod icosahedron;
 mod setup;
 mod utils;
 
+const RADIUS: f64 = 100_000.0;
+
 pub fn main() -> anyhow::Result<()> {
     env_logger::init();
 
@@ -25,8 +27,8 @@ pub fn main() -> anyhow::Result<()> {
     let mut camera = camera::Camera::new(
         &device,
         &config,
-        glam::vec3(0., 0., 1.),
-        glam::vec3(0., -1., -2.).normalize(),
+        dvec3(0., 0., RADIUS),
+        vec3(0., -1., -2.).normalize(),
     );
     let camera_uniform = camera::uniform_buffer(&device);
 
@@ -50,7 +52,7 @@ pub fn main() -> anyhow::Result<()> {
                     return;
                 }
 
-                update(start.elapsed().as_secs_f32(), &mut camera);
+                update(start.elapsed().as_secs_f64(), &mut camera);
                 camera::write_view_projection(&queue, &camera, &camera_uniform);
                 match icosahedron::render(&surface, &device, &queue, &camera, &triangle) {
                     Ok(_) => {}
@@ -92,9 +94,9 @@ pub fn main() -> anyhow::Result<()> {
     Ok(())
 }
 
-fn update(t: f32, camera: &mut camera::Camera) {
-    let (x, y) = (1.3 * t).sin_cos();
-    camera.position.x = 4. * x;
-    camera.position.y = 4. * y;
-    camera.look_dir = -camera.position.normalize()
+fn update(t: f64, camera: &mut camera::Camera) {
+    let (x, y) = (0.5 * t).sin_cos();
+    camera.position.x = 4. * RADIUS * x;
+    camera.position.y = 4. * RADIUS * y;
+    camera.look_dir = -camera.position.normalize().as_vec3()
 }

@@ -2,6 +2,8 @@ use crate::setup;
 use crate::utils::*;
 use anyhow::Result;
 
+use crate::RADIUS;
+
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
@@ -25,22 +27,22 @@ impl Vertex {
     }
 }
 
-const PHI: f32 = 1.61803398875; // Golden ratio
+const PHI: f64 = 1.61803398875; // Golden ratio
 
 #[rustfmt::skip]
-pub const VERTICES: &[Vec3] = &[
-    Vec3::new(-1.0,  PHI,  0.0),
-    Vec3::new( 1.0,  PHI,  0.0),
-    Vec3::new(-1.0, -PHI,  0.0),
-    Vec3::new( 1.0, -PHI,  0.0),
-    Vec3::new( 0.0, -1.0,  PHI),
-    Vec3::new( 0.0,  1.0,  PHI),
-    Vec3::new( 0.0, -1.0, -PHI),
-    Vec3::new( 0.0,  1.0, -PHI),
-    Vec3::new( PHI,  0.0, -1.0),
-    Vec3::new( PHI,  0.0,  1.0),
-    Vec3::new(-PHI,  0.0, -1.0),
-    Vec3::new(-PHI,  0.0,  1.0),
+pub const VERTICES: &[DVec3] = &[
+    DVec3::new(-1.0,  PHI,  0.0),
+    DVec3::new( 1.0,  PHI,  0.0),
+    DVec3::new(-1.0, -PHI,  0.0),
+    DVec3::new( 1.0, -PHI,  0.0),
+    DVec3::new( 0.0, -1.0,  PHI),
+    DVec3::new( 0.0,  1.0,  PHI),
+    DVec3::new( 0.0, -1.0, -PHI),
+    DVec3::new( 0.0,  1.0, -PHI),
+    DVec3::new( PHI,  0.0, -1.0),
+    DVec3::new( PHI,  0.0,  1.0),
+    DVec3::new(-PHI,  0.0, -1.0),
+    DVec3::new(-PHI,  0.0,  1.0),
 ];
 
 #[rustfmt::skip]
@@ -51,13 +53,13 @@ pub const INDICES: &[u16] = &[
     4, 9, 5,  2, 4, 11,  6, 2, 10,  8, 6, 7,  9, 8, 1,
 ];
 
-fn subdivide(vertices: &mut Vec<Vec3>, indices: &mut Vec<u16>) {
+fn subdivide(vertices: &mut Vec<DVec3>, indices: &mut Vec<u16>) {
     let mut new_indices = Vec::new();
     let mut midpoint_cache = std::collections::HashMap::new();
 
     let midpoint = |a: u16,
                     b: u16,
-                    vertices: &mut Vec<Vec3>,
+                    vertices: &mut Vec<DVec3>,
                     cache: &mut std::collections::HashMap<(u16, u16), u16>|
      -> u16 {
         let key = if a < b { (a, b) } else { (b, a) };
@@ -95,7 +97,7 @@ pub fn subdivided_icosahedron(subdivisions: usize) -> (Vec<Vertex>, Vec<u16>) {
     let vertices = vertices
         .into_iter()
         .map(|vertex| Vertex {
-            position: vertex.into(),
+            position: (vertex * RADIUS).into(),
             color: Vec3::ONE,
             _padding: 0.,
         })

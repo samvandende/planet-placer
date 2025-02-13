@@ -1,7 +1,7 @@
 use crate::utils::*;
 
 pub struct Camera {
-    pub position: Vec3,
+    pub position: DVec3,
     pub look_dir: Vec3,
     pub up: Vec3,
     pub fov_y: f32,
@@ -15,7 +15,8 @@ pub struct Camera {
 #[repr(C)]
 #[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct CameraUniform {
-    view_proj: Mat4,
+    view: Mat4,
+    projection: Mat4,
     position: PackedVec3,
     z_near: f32,
     z_far: f32,
@@ -26,8 +27,8 @@ impl Camera {
     pub fn new(
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
-        position: glam::Vec3,
-        look_dir: glam::Vec3,
+        position: DVec3,
+        look_dir: Vec3,
     ) -> Self {
         let aspect = config.width as f32 / config.height as f32;
         let size = wgpu::Extent3d {
@@ -53,8 +54,8 @@ impl Camera {
             up: glam::Vec3::Z,
             aspect,
             fov_y: 45f32.to_radians(),
-            z_near: 0.01,
-            z_far: 100.,
+            z_near: 0.001,
+            z_far: 1_000_000.0,
             depth_texture,
             depth_view,
         }
@@ -94,14 +95,15 @@ pub fn write_view_projection(
     uniform_buffer: &Buffer<CameraUniform>,
 ) {
     let view = glam::Mat4::look_to_rh(Vec3::ZERO, camera.look_dir, camera.up);
-    let proj = glam::Mat4::perspective_rh(camera.fov_y, camera.aspect, camera.z_near, camera.z_far);
-    let view_proj = proj * view;
+    let projection =
+        glam::Mat4::perspective_rh(camera.fov_y, camera.aspect, camera.z_near, camera.z_far);
     let position = camera.position.into();
     queue.write_typed_buffer(
         uniform_buffer,
         0,
         &[CameraUniform {
-            view_proj,
+            view,
+            projection,
             position,
             z_near: camera.z_near,
             z_far: camera.z_far,
