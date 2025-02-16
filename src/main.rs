@@ -5,11 +5,11 @@ use winit::{
     keyboard::{KeyCode, PhysicalKey},
 };
 
-mod icosahedron;
+mod planet;
 mod setup;
 mod utils;
 
-const RADIUS: f64 = 100_000.0;
+const RADIUS: f64 = 1.0;
 
 pub fn main() -> anyhow::Result<()> {
     env_logger::init();
@@ -32,7 +32,7 @@ pub fn main() -> anyhow::Result<()> {
     );
     let camera_uniform = camera::uniform_buffer(&device);
 
-    let triangle = icosahedron::Icosahedron::new(&device, &config, &camera_uniform, 4)?;
+    let planet = planet::Planet::new(&device, &config, &camera_uniform)?;
 
     let start = std::time::Instant::now();
     event_loop.run(move |event, control_flow| match event {
@@ -54,7 +54,7 @@ pub fn main() -> anyhow::Result<()> {
 
                 update(start.elapsed().as_secs_f64(), &mut camera);
                 camera::write_view_projection(&queue, &camera, &camera_uniform);
-                match icosahedron::render(&surface, &device, &queue, &camera, &triangle) {
+                match planet::render(&surface, &device, &queue, &camera, &planet) {
                     Ok(_) => {}
                     Err(wgpu::SurfaceError::Lost | wgpu::SurfaceError::Outdated) => {
                         surface_configured = setup::configure_surface(
