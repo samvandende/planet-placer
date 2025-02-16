@@ -78,6 +78,10 @@ impl Camera {
             stencil_ops: None,
         }
     }
+
+    pub fn aspect_ratio(&self) -> f32 {
+        self.aspect
+    }
 }
 
 pub fn uniform_buffer(device: &wgpu::Device) -> Buffer<CameraUniform> {

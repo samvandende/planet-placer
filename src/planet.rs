@@ -183,52 +183,10 @@ impl Planet {
     }
 }
 
-pub fn render(
-    surface: &wgpu::Surface,
-    device: &wgpu::Device,
-    queue: &wgpu::Queue,
-    camera: &camera::Camera,
-    planet: &Planet,
-) -> Result<(), wgpu::SurfaceError> {
-    let output = surface.get_current_texture()?;
-
-    let view = output
-        .texture
-        .create_view(&wgpu::TextureViewDescriptor::default());
-    let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-        label: Some("Render Encoder"),
-    });
-
-    {
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("Render Pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.01,
-                        g: 0.01,
-                        b: 0.01,
-                        a: 1.0,
-                    }),
-                    store: wgpu::StoreOp::Store,
-                },
-            })],
-            depth_stencil_attachment: Some(camera.depth_stencil_attachment()),
-            occlusion_query_set: None,
-            timestamp_writes: None,
-        });
-
-        render_pass.set_pipeline(&planet.render_pipeline);
-        render_pass.set_bind_group(0, &planet.bind_group, &[]);
-        render_pass.set_typed_vertex_buffer(0, &planet.vertex_buffer);
-        render_pass.set_typed_index_buffer(&planet.index_buffer);
-        render_pass.draw_indexed(0..planet.index_buffer.len as _, 0, 0..1);
-    }
-
-    queue.submit(std::iter::once(encoder.finish()));
-    output.present();
-
-    Ok(())
+pub fn render(render_pass: &mut wgpu::RenderPass, planet: &Planet) {
+    render_pass.set_pipeline(&planet.render_pipeline);
+    render_pass.set_bind_group(0, &planet.bind_group, &[]);
+    render_pass.set_typed_vertex_buffer(0, &planet.vertex_buffer);
+    render_pass.set_typed_index_buffer(&planet.index_buffer);
+    render_pass.draw_indexed(0..planet.index_buffer.len as _, 0, 0..1);
 }
