@@ -1,8 +1,16 @@
+use std::collections::HashSet;
+
 use crate::setup;
 use crate::utils::*;
 use anyhow::Result;
+use rand::{seq::SliceRandom, Rng, SeedableRng};
+use rand_pcg::Pcg32;
+use tectonic_plates::TectonicPlateClassification;
 
 use crate::RADIUS;
+mod regions;
+use regions::Region;
+mod tectonic_plates;
 
 #[repr(C)]
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
@@ -27,81 +35,38 @@ impl Vertex {
     }
 }
 
-const PHI: f64 = 1.61803398875; // Golden ratio
-
-#[rustfmt::skip]
-pub const VERTICES: &[DVec3] = &[
-    DVec3::new(-1.0,  PHI,  0.0),
-    DVec3::new( 1.0,  PHI,  0.0),
-    DVec3::new(-1.0, -PHI,  0.0),
-    DVec3::new( 1.0, -PHI,  0.0),
-    DVec3::new( 0.0, -1.0,  PHI),
-    DVec3::new( 0.0,  1.0,  PHI),
-    DVec3::new( 0.0, -1.0, -PHI),
-    DVec3::new( 0.0,  1.0, -PHI),
-    DVec3::new( PHI,  0.0, -1.0),
-    DVec3::new( PHI,  0.0,  1.0),
-    DVec3::new(-PHI,  0.0, -1.0),
-    DVec3::new(-PHI,  0.0,  1.0),
-];
-
-#[rustfmt::skip]
-pub const INDICES: &[u16] = &[
-    0, 11, 5,  0, 5, 1,  0, 1, 7,  0, 7, 10,  0, 10, 11,
-    1, 5, 9,  5, 11, 4,  11, 10, 2,  10, 7, 6,  7, 1, 8,
-    3, 9, 4,  3, 4, 2,  3, 2, 6,  3, 6, 8,  3, 8, 9,
-    4, 9, 5,  2, 4, 11,  6, 2, 10,  8, 6, 7,  9, 8, 1,
-];
-
-fn subdivide(vertices: &mut Vec<DVec3>, indices: &mut Vec<u16>) {
-    let mut new_indices = Vec::new();
-    let mut midpoint_cache = std::collections::HashMap::new();
-
-    let midpoint = |a: u16,
-                    b: u16,
-                    vertices: &mut Vec<DVec3>,
-                    cache: &mut std::collections::HashMap<(u16, u16), u16>|
-     -> u16 {
-        let key = if a < b { (a, b) } else { (b, a) };
-        if let Some(&mid) = cache.get(&key) {
-            return mid;
-        }
-        let mid_pos = (vertices[a as usize] + vertices[b as usize]) * 0.5;
-        let mid_index = vertices.len() as u16;
-        vertices.push(mid_pos.normalize());
-        cache.insert(key, mid_index);
-        mid_index
-    };
-
-    for chunk in indices.chunks_exact(3) {
-        let m1 = midpoint(chunk[0], chunk[1], vertices, &mut midpoint_cache);
-        let m2 = midpoint(chunk[1], chunk[2], vertices, &mut midpoint_cache);
-        let m3 = midpoint(chunk[2], chunk[0], vertices, &mut midpoint_cache);
-
-        new_indices.extend_from_slice(&[
-            chunk[0], m1, m3, m1, chunk[1], m2, m3, m2, chunk[2], m1, m2, m3,
-        ]);
+impl Vertex {
+    #[rustfmt::skip]
+    fn from_region(region: &Region, classification: TectonicPlateClassification) -> [Self; 3] {
+        let color = match classification {
+            TectonicPlateClassification::Continental => vec3(0., 1., 0.),
+            TectonicPlateClassification::Oceanic => vec3(0., 0., 1.),
+        };
+        [
+            Vertex { position: region.corners[0].into(), color, _padding: 0. },
+            Vertex { position: region.corners[1].into(), color, _padding: 0. },
+            Vertex { position: region.corners[2].into(), color, _padding: 0. },
+        ]
     }
-    *indices = new_indices;
 }
 
-pub fn subdivided_icosahedron(subdivisions: usize) -> (Vec<Vertex>, Vec<u16>) {
-    let mut vertices = VERTICES.to_owned();
-    let mut indices = INDICES.to_owned();
-    for vertex in &mut vertices {
-        *vertex = vertex.normalize();
+pub fn build_planet() -> (Vec<Vertex>, Vec<u16>) {
+    let mut rng = Pcg32::seed_from_u64(1);
+    let regions = regions::create_regions(5);
+    let tectonic_plates = tectonic_plates::cluster_regions(&mut rng, &regions, 40);
+
+    let mut vertices = vec![];
+    for plate in &tectonic_plates {
+        for region_index in &plate.contained_regions {
+            let region = &regions[*region_index];
+            let verts = Vertex::from_region(region, plate.classification);
+            for v in verts {
+                vertices.push(v);
+            }
+        }
     }
-    for _ in 0..subdivisions {
-        subdivide(&mut vertices, &mut indices);
-    }
-    let vertices = vertices
-        .into_iter()
-        .map(|vertex| Vertex {
-            position: (vertex * RADIUS).into(),
-            color: Vec3::ONE,
-            _padding: 0.,
-        })
-        .collect();
+    let indices = (0..vertices.len() as u16).collect();
+
     (vertices, indices)
 }
 
@@ -121,21 +86,21 @@ pub fn index_buffer(device: &wgpu::Device, indices: &[u16]) -> Buffer<u16> {
     })
 }
 
-pub struct Icosahedron {
+pub struct Planet {
     vertex_buffer: Buffer<Vertex>,
     index_buffer: Buffer<u16>,
     bind_group: wgpu::BindGroup,
     render_pipeline: wgpu::RenderPipeline,
 }
 
-impl Icosahedron {
+impl Planet {
     pub fn new(
         device: &wgpu::Device,
         config: &wgpu::SurfaceConfiguration,
         camera_uniform: &Buffer<camera::CameraUniform>,
-        subdivisions: usize,
     ) -> Result<Self> {
-        let (vertices, indices) = subdivided_icosahedron(subdivisions);
+        let (vertices, indices) = build_planet();
+
         let vertex_buffer = vertex_buffer(device, &vertices);
         let index_buffer = index_buffer(device, &indices);
 
@@ -195,7 +160,7 @@ impl Icosahedron {
                 strip_index_format: None,
                 front_face: wgpu::FrontFace::Ccw,
                 cull_mode: Some(wgpu::Face::Back),
-                polygon_mode: wgpu::PolygonMode::Line,
+                polygon_mode: wgpu::PolygonMode::Fill,
                 unclipped_depth: false,
                 conservative: false,
             },
@@ -209,7 +174,7 @@ impl Icosahedron {
             cache: None,
         });
 
-        Ok(Icosahedron {
+        Ok(Planet {
             vertex_buffer,
             index_buffer,
             bind_group,
@@ -223,7 +188,7 @@ pub fn render(
     device: &wgpu::Device,
     queue: &wgpu::Queue,
     camera: &camera::Camera,
-    triangle: &Icosahedron,
+    planet: &Planet,
 ) -> Result<(), wgpu::SurfaceError> {
     let output = surface.get_current_texture()?;
 
@@ -242,9 +207,9 @@ pub fn render(
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.1,
-                        g: 0.2,
-                        b: 0.3,
+                        r: 0.01,
+                        g: 0.01,
+                        b: 0.01,
                         a: 1.0,
                     }),
                     store: wgpu::StoreOp::Store,
@@ -255,11 +220,11 @@ pub fn render(
             timestamp_writes: None,
         });
 
-        render_pass.set_pipeline(&triangle.render_pipeline);
-        render_pass.set_bind_group(0, &triangle.bind_group, &[]);
-        render_pass.set_typed_vertex_buffer(0, &triangle.vertex_buffer);
-        render_pass.set_typed_index_buffer(&triangle.index_buffer);
-        render_pass.draw_indexed(0..triangle.index_buffer.len as _, 0, 0..1);
+        render_pass.set_pipeline(&planet.render_pipeline);
+        render_pass.set_bind_group(0, &planet.bind_group, &[]);
+        render_pass.set_typed_vertex_buffer(0, &planet.vertex_buffer);
+        render_pass.set_typed_index_buffer(&planet.index_buffer);
+        render_pass.draw_indexed(0..planet.index_buffer.len as _, 0, 0..1);
     }
 
     queue.submit(std::iter::once(encoder.finish()));
