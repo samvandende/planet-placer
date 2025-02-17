@@ -129,8 +129,8 @@ fn fs_main(in: VertexOutput) -> FragmentOutput {
     let dir = normalize(in.look_dir);
 
     var stars: f32 = calculate_stars(dir);
-    stars += calculate_stars(dir*2.0) * 0.5;
-    stars += calculate_stars(dir*4.0) * 0.25;
+    stars += calculate_stars(dir*1.5) * 0.5;
+    // stars += calculate_stars(dir*4.0) * 0.25;
 
     let nebula = calculate_nebula(dir);
 

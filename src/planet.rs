@@ -104,7 +104,7 @@ impl Planet {
         let vertex_buffer = vertex_buffer(device, &vertices);
         let index_buffer = index_buffer(device, &indices);
 
-        let shader = setup::shader(device, "shaders/simple_3d.wgsl")?;
+        let shader = setup::shader(device, "shaders/planet.wgsl")?;
 
         let bind_group_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             entries: &[wgpu::BindGroupLayoutEntry {
